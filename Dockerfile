@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 # Installation de Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Permettre à Composer de fonctionner en tant que root
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
 # Configuration Apache
 RUN a2enmod rewrite
 
@@ -25,17 +28,14 @@ WORKDIR /var/www/html
 # Copier TOUT le code
 COPY . .
 
-# Installation de Composer SANS les scripts automatiques
-RUN composer install --no-dev --no-scripts --optimize-autoloader
+# Installation de Composer avec tous les scripts
+RUN composer install --no-dev --optimize-autoloader
 
-# Générer l'autoloader manuellement
-RUN composer dump-autoload --optimize
-
-# Créer les dossiers nécessaires
+# Créer les dossiers nécessaires avec bonnes permissions
 RUN mkdir -p var/cache var/log
 RUN chmod 777 var/cache var/log
 
-# Permissions
+# Permissions finales
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80

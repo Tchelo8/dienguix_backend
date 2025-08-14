@@ -22,17 +22,11 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
 WORKDIR /var/www/html
 
-# Copier composer.json et composer.lock en premier
-COPY composer.json composer.lock ./
-
-# Installation des dépendances (sans les dev dependencies)
-RUN composer install --no-dev --no-scripts
-
-# Copier le reste du code
+# Copier TOUT le code
 COPY . .
 
-# Finaliser l'installation de composer
-RUN composer dump-autoload --optimize
+# Installation complète de Composer en une seule fois
+RUN composer install --no-dev --optimize-autoloader
 
 # Permissions
 RUN chown -R www-data:www-data /var/www/html

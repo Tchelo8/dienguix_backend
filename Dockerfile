@@ -25,8 +25,15 @@ WORKDIR /var/www/html
 # Copier TOUT le code
 COPY . .
 
-# Installation complète de Composer en une seule fois
-RUN composer install --no-dev --optimize-autoloader
+# Installation de Composer SANS les scripts automatiques
+RUN composer install --no-dev --no-scripts --optimize-autoloader
+
+# Générer l'autoloader manuellement
+RUN composer dump-autoload --optimize
+
+# Créer les dossiers nécessaires
+RUN mkdir -p var/cache var/log
+RUN chmod 777 var/cache var/log
 
 # Permissions
 RUN chown -R www-data:www-data /var/www/html

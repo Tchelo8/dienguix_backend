@@ -12,7 +12,7 @@ final class TestController extends AbstractController
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Bienvenu sur l\' API de DIENGUIX !',
+            'message' => 'Bienvenu sur l\'API de DIENGUIX dévéloppé par Henoc Tchelo !',
         ]);
     }
 }

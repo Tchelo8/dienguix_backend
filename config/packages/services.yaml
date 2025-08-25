@@ -1,0 +1,6 @@
+# config/services.yaml
+services:
+    # Configuration par défaut pour les services dans ce fichier
+    _defaults:
+        autowire: true
+        autoconfigure: true

@@ -3,14 +3,15 @@
 namespace App\Entity;
 
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: '`user`')]
-class User implements UserInterface, PasswordAuthenticatedUserInterface
-// \JsonSerializable,
+class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -55,6 +56,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\ManyToOne(inversedBy: 'users')]
     private ?Role $role = null;
+
+    /**
+     * @var Collection<int, Transaction>
+     */
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'sender')]
+    private Collection $transaction_sender;
+
+    /**
+     * @var Collection<int, Transaction>
+     */
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'receiver')]
+    private Collection $transaction_receiver;
+
+    public function __construct()
+    {
+        $this->transaction_sender = new ArrayCollection();
+        $this->transaction_receiver = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -242,5 +261,92 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         // Retourne une propriété unique de l'utilisateur, ex: email ou username
         return $this->email; // remplace $this->email par le champ identifiant
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'is_active' => $this->is_active,
+            'status' => $this->status,
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            'last_login_at' => $this->last_login_at?->format('Y-m-d H:i:s'),
+            // Relations - avec vérification pour éviter les références circulaires
+            'country' => $this->country ? [
+                'id' => $this->country->getId(),
+                'name' => $this->country->getName(), 
+            ] : null,
+            
+            'role' => $this->role ? [
+                'id' => $this->role->getId(),
+                'name' => $this->role->getName(), 
+            ] : null,
+            'user_profile' => $this->userProfile?->jsonSerialize(),
+        ];
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function getTransactionSender(): Collection
+    {
+        return $this->transaction_sender;
+    }
+
+    public function addTransactionSender(Transaction $transactionSender): static
+    {
+        if (!$this->transaction_sender->contains($transactionSender)) {
+            $this->transaction_sender->add($transactionSender);
+            $transactionSender->setSender($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTransactionSender(Transaction $transactionSender): static
+    {
+        if ($this->transaction_sender->removeElement($transactionSender)) {
+            // set the owning side to null (unless already changed)
+            if ($transactionSender->getSender() === $this) {
+                $transactionSender->setSender(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function getTransactionReceiver(): Collection
+    {
+        return $this->transaction_receiver;
+    }
+
+    public function addTransactionReceiver(Transaction $transactionReceiver): static
+    {
+        if (!$this->transaction_receiver->contains($transactionReceiver)) {
+            $this->transaction_receiver->add($transactionReceiver);
+            $transactionReceiver->setReceiver($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTransactionReceiver(Transaction $transactionReceiver): static
+    {
+        if ($this->transaction_receiver->removeElement($transactionReceiver)) {
+            // set the owning side to null (unless already changed)
+            if ($transactionReceiver->getReceiver() === $this) {
+                $transactionReceiver->setReceiver(null);
+            }
+        }
+
+        return $this;
     }
 }

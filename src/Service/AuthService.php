@@ -90,17 +90,22 @@ class AuthService
         // Marquer le code OTP comme utilisé
         $this->otpService->markOtpAsUsed($email, $otpCode);
 
+        // Mise à jour la date de dernière connexion de l'utilisateur
+        $user->setLastLoginAt(new \DateTime());
+        $this->entityManager->flush();
+
         // Générer le token JWT
         $token = $this->jwtManager->create($user);
 
         return [
             'success' => true,
             'token' => $token,
-            'user' => [
-                'id' => $user->getId(),
-                'email' => $user->getEmail(),
-                'roles' => $user->getRoles()
-            ]
+            'user' => $user->jsonSerialize()
+            // 'user' => [
+            //     'id' => $user->getId(),
+            //     'email' => $user->getEmail(),
+            //     'roles' => $user->getRoles()
+            // ]
         ];
     }
 }

@@ -8,7 +8,7 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CountryRepository::class)]
-class Country
+class Country implements \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -42,9 +42,30 @@ class Country
     #[ORM\OneToMany(targetEntity: User::class, mappedBy: 'country')]
     private Collection $users;
 
+    /**
+     * @var Collection<int, Operator>
+     */
+    #[ORM\OneToMany(targetEntity: Operator::class, mappedBy: 'country')]
+    private Collection $operators;
+
+    /**
+     * @var Collection<int, Transaction>
+     */
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'from_country')]
+    private Collection $transaction_from_country;
+
+    /**
+     * @var Collection<int, Transaction>
+     */
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'to_country')]
+    private Collection $transaction_to_country;
+
     public function __construct()
     {
         $this->users = new ArrayCollection();
+        $this->operators = new ArrayCollection();
+        $this->transaction_from_country = new ArrayCollection();
+        $this->transaction_to_country = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -164,5 +185,109 @@ class Country
         }
 
         return $this;
+    }
+
+    /**
+     * @return Collection<int, Operator>
+     */
+    public function getOperators(): Collection
+    {
+        return $this->operators;
+    }
+
+    public function addOperator(Operator $operator): static
+    {
+        if (!$this->operators->contains($operator)) {
+            $this->operators->add($operator);
+            $operator->setCountry($this);
+        }
+
+        return $this;
+    }
+
+    public function removeOperator(Operator $operator): static
+    {
+        if ($this->operators->removeElement($operator)) {
+            // set the owning side to null (unless already changed)
+            if ($operator->getCountry() === $this) {
+                $operator->setCountry(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function getTransactionFromCountry(): Collection
+    {
+        return $this->transaction_from_country;
+    }
+
+    public function addTransactionFromCountry(Transaction $transactionFromCountry): static
+    {
+        if (!$this->transaction_from_country->contains($transactionFromCountry)) {
+            $this->transaction_from_country->add($transactionFromCountry);
+            $transactionFromCountry->setFromCountry($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTransactionFromCountry(Transaction $transactionFromCountry): static
+    {
+        if ($this->transaction_from_country->removeElement($transactionFromCountry)) {
+            // set the owning side to null (unless already changed)
+            if ($transactionFromCountry->getFromCountry() === $this) {
+                $transactionFromCountry->setFromCountry(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function getTransactionToCountry(): Collection
+    {
+        return $this->transaction_to_country;
+    }
+
+    public function addTransactionToCountry(Transaction $transactionToCountry): static
+    {
+        if (!$this->transaction_to_country->contains($transactionToCountry)) {
+            $this->transaction_to_country->add($transactionToCountry);
+            $transactionToCountry->setToCountry($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTransactionToCountry(Transaction $transactionToCountry): static
+    {
+        if ($this->transaction_to_country->removeElement($transactionToCountry)) {
+            // set the owning side to null (unless already changed)
+            if ($transactionToCountry->getToCountry() === $this) {
+                $transactionToCountry->setToCountry(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->getName(),
+            'iso_code' => $this->getIsoCode(),
+            'currency_code' => $this->getCurrencyCode(),
+            'is_active' => $this->isActive(),
+            'status' => $this->isStatus(),
+            'created_at' => $this->getCreatedAt(),
+            'updated_at' => $this->getUpdatedAt(),
+        ];
     }
 }

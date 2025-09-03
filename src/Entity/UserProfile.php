@@ -6,7 +6,7 @@ use App\Repository\UserProfileRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: UserProfileRepository::class)]
-class UserProfile
+class UserProfile implements \JsonSerializable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -212,4 +212,29 @@ class UserProfile
 
         return $this;
     }
+
+        public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'address' => $this->address,
+            'photo' => $this->photo,
+            'city' => $this->city,
+            'birth_date' => $this->birth_date?->format('Y-m-d'),
+            'verified' => $this->verified,
+            'gender' => $this->gender,
+            'status' => $this->status,
+            'document_number' => $this->document_number,
+            'document_file' => $this->document_file,
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            // Document associé (sans référence circulaire)
+            'document' => $this->document ? [
+                'id' => $this->document->getId(),
+                'name' => $this->document->getName(), 
+
+            ] : null,
+        ];
+    }
+
 }

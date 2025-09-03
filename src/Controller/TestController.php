@@ -12,7 +12,15 @@ final class TestController extends AbstractController
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Bienvenu sur l\'API de DIENGUIX dévéloppé par Henoc Tchelo !',
+            'message' => 'Bienvenu sur API de DIENGUIX dévéloppé par Henoc Tchelo !',
+        ]);
+    }
+
+    #[Route('/arny/test', name: 'app_test_arny')]
+    public function arny(): JsonResponse
+    {
+        return $this->json([
+            'message' => 'Bienvenu sur API de DIENGUIX dévéloppé par Arny !',
         ]);
     }
 }

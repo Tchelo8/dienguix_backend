@@ -5,9 +5,11 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libxml2-dev \
     libzip-dev \
+    libicu-dev \
     git \
     unzip \
-    && docker-php-ext-install pdo_mysql zip
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install pdo_mysql zip intl
 
 # Installation de Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -28,8 +30,8 @@ WORKDIR /var/www/html
 # Copier TOUT le code
 COPY . .
 
-# Installation de Composer avec tous les scripts
-RUN composer install --no-dev --optimize-autoloader
+# Installation de Composer SANS les scripts auto (pour éviter cache:clear pendant le build)
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Créer les dossiers nécessaires avec bonnes permissions
 RUN mkdir -p var/cache var/log

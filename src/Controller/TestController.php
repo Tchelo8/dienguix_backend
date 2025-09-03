@@ -23,4 +23,12 @@ final class TestController extends AbstractController
             'message' => 'Bienvenu sur API de DIENGUIX dévéloppé par Arny !',
         ]);
     }
+
+    #[Route('/arny/test', name: 'app_test_arny')]
+    public function arny(): JsonResponse
+    {
+        return $this->json([
+            'message' => 'Bienvenu sur l\'API de DIENGUIX dévéloppé par Arny !',
+        ]);
+    }
 }

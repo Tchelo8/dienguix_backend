@@ -16,7 +16,7 @@ final class TestController extends AbstractController
         ]);
     }
 
-    #[Route('/arny/test', name: 'app_test')]
+    #[Route('/arny/test', name: 'app_test_arny')]
     public function index(): JsonResponse
     {
         return $this->json([

@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libzip-dev \
     libicu-dev \
+    libpq-dev \
     git \
     unzip \
     && docker-php-ext-configure intl \
@@ -30,7 +31,7 @@ WORKDIR /var/www/html
 # Copier TOUT le code
 COPY . .
 
-# Installation de Composer SANS les scripts auto (pour éviter cache:clear pendant le build)
+# Installation de Composer SANS les scripts auto
 RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Créer les dossiers nécessaires avec bonnes permissions
@@ -41,5 +42,4 @@ RUN chmod 777 var/cache var/log
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
-
 CMD ["apache2-foreground"]

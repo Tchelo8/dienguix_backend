@@ -46,7 +46,7 @@ class OtpService
         }
 
         // Vérifier si le code n'a pas expiré
-        if ($codeOtp->getExpiredAt() < new \DateTime()) {
+        if ($codeOtp->getExpiredAt() < new \DateTimeImmutable()) {
             return false;
         }
 

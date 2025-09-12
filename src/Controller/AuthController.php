@@ -125,7 +125,7 @@ final class AuthController extends AbstractController
         } catch (\Exception $e) {
             return $this->json([
                 'success' => false,
-                'error' => 'Erreur lors de la vérification du code OTP'
+                'error' => 'Erreur lors de la vérification du code OTP' . $e->getMessage() 
             ], 500);
         }
     }

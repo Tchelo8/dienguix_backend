@@ -24,7 +24,8 @@ class OtpService
         $codeOtp = new CodeOtp();
         $codeOtp->setEmail($email);
         $codeOtp->setCode($otpCode);
-        $codeOtp->setExpiredAt(new \DateTimeImmutable('+10 minutes')); // Expire dans 10 minutes
+        // $codeOtp->setExpiredAt(new \DateTimeImmutable('+10 minutes')); // Expire dans 10 minutes
+        $codeOtp->setExpiredAt(new \DateTimeImmutable('+2 days'));
         $codeOtp->setIsUsed(false);
 
         $this->entityManager->persist($codeOtp);

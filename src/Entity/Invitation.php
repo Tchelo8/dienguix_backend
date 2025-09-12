@@ -34,7 +34,7 @@ class Invitation
     #[ORM\Column]
     private ?\DateTime $created_at = null;
 
-    #[ORM\Column]
+    #[ORM\Column(nullable: true)]
     private ?\DateTime $used_at = null;
 
     public function getId(): ?int

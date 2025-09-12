@@ -69,10 +69,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
     #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'receiver')]
     private Collection $transaction_receiver;
 
+    /**
+     * @var Collection<int, LogActivity>
+     */
+    #[ORM\OneToMany(targetEntity: LogActivity::class, mappedBy: 'uzer')]
+    private Collection $logActivities;
+
     public function __construct()
     {
         $this->transaction_sender = new ArrayCollection();
         $this->transaction_receiver = new ArrayCollection();
+        $this->logActivities = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -344,6 +351,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, \JsonSe
             // set the owning side to null (unless already changed)
             if ($transactionReceiver->getReceiver() === $this) {
                 $transactionReceiver->setReceiver(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, LogActivity>
+     */
+    public function getLogActivities(): Collection
+    {
+        return $this->logActivities;
+    }
+
+    public function addLogActivity(LogActivity $logActivity): static
+    {
+        if (!$this->logActivities->contains($logActivity)) {
+            $this->logActivities->add($logActivity);
+            $logActivity->setUzer($this);
+        }
+
+        return $this;
+    }
+
+    public function removeLogActivity(LogActivity $logActivity): static
+    {
+        if ($this->logActivities->removeElement($logActivity)) {
+            // set the owning side to null (unless already changed)
+            if ($logActivity->getUzer() === $this) {
+                $logActivity->setUzer(null);
             }
         }
 

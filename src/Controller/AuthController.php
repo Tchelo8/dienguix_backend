@@ -8,13 +8,18 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use App\Service\UserService;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Email;
 
 final class AuthController extends AbstractController
 {
     private AuthService $authService;
 
-    public function __construct(private UserService $userService, AuthService $authService)
-    {
+    public function __construct(
+        private UserService $userService, 
+        AuthService $authService,
+        private readonly MailerInterface $mailer,
+    ) {
         $this->authService = $authService;
     }
 
@@ -24,7 +29,7 @@ final class AuthController extends AbstractController
         $data = json_decode($request->getContent(), true);
 
         try {
-            $roleId = $data['role'] ?? 1; // ID par défaut si non fourni
+            $roleId = $data['role'] ?? 1; 
             $user = $this->userService->createUser($data, $roleId);
 
             return $this->json([
@@ -121,6 +126,81 @@ final class AuthController extends AbstractController
             return $this->json([
                 'success' => false,
                 'error' => 'Erreur lors de la vérification du code OTP'
+            ], 500);
+        }
+    }
+
+    #[Route('/api/test-email', name: 'test_email', methods: ['GET'])]
+    public function testEmail(): JsonResponse
+    {
+        try {
+            $this->mailer->send(
+                (new Email())
+                    ->from('Acme <onboarding@resend.dev>')
+                    ->to('bessahenoc88@gmail.com')
+                    ->subject('Test resend mail')
+                    ->html('<strong>it works!</strong>')
+            );
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Email de test envoyé avec succès!'
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Erreur lors de l\'envoi de l\'email: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+    //  ROUTE DE TEST - Sans envoi d'email pour le mobile
+    #[Route('/api/auth/test-login/dgapp', name: 'api_test_login', methods: ['POST'])]
+    public function testLogin(Request $request): JsonResponse
+    {
+        error_log('=== DEBUT TEST LOGIN (sans email) ===');
+        
+        $data = json_decode($request->getContent(), true);
+        error_log('Data reçue: ' . json_encode($data));
+
+        if (!isset($data['email']) || !isset($data['password'])) {
+            error_log('Email ou password manquant');
+            return $this->json([
+                'success' => false,
+                'error' => 'Email et mot de passe requis'
+            ], 400);
+        }
+        
+        try {
+            error_log('Avant appel AuthService->initiateTestLogin');
+            $result = $this->authService->initiateTestLogin($data['email'], $data['password']);
+            error_log('Résultat AuthService: ' . json_encode($result));
+            
+            if (!$result['success']) {
+                error_log('AuthService a échoué');
+                return $this->json([
+                    'success' => false,
+                    'error' => $result['message']
+                ], 422);
+            }
+            
+            error_log('AuthService réussi, retour de la réponse avec code OTP');
+            return $this->json([
+                'success' => true,
+                'message' => 'Code OTP généré (mode test)',
+                'otp_code' => $result['otp_code'], 
+                'otp_generated' => true
+            ]);
+        } catch (\Exception $e) {
+            error_log('EXCEPTION dans testLogin: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
+            
+            return $this->json([
+                'success' => false,
+                'error' => 'Erreur lors de la connexion de test: ' . $e->getMessage()
             ], 500);
         }
     }

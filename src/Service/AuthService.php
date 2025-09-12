@@ -67,6 +67,35 @@ class AuthService
         ];
     }
 
+
+
+    //  MÉTHODE DE TEST - Sans envoi d'email pour le mobile
+    public function initiateTestLogin(string $email, string $password): array
+    {
+        // Vérifier les identifiants
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+       
+        if (!$user || !$this->passwordHasher->isPasswordValid($user, $password)) {
+            return [
+                'success' => false,
+                'message' => 'Identifiants invalides'
+            ];
+        }
+
+        // D'abord invalider les anciens codes OTP pour cet email
+        $this->otpService->invalidateOldCodes($email);
+
+        // Ensuite générer un nouveau code OTP
+        $otpCode = $this->otpService->generateOtpCode($email);
+
+        // PAS D'ENVOI D'EMAIL - On retourne directement le code
+        return [
+            'success' => true,
+            'message' => 'Code OTP généré en mode test',
+            'otp_code' => $otpCode // On retourne le code directement
+        ];
+    }
+
     public function verifyOtpAndLogin(string $email, string $otpCode): array
     {
         // Vérifier le code OTP

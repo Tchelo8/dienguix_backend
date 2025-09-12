@@ -5,8 +5,12 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
-    #esi: true
-    #fragments: true
+    webhook:
+        routing:
+            mailer_resend:
+                service: 'mailer.webhook.request_parser.resend'
+                secret: '%env(MAILER_RESEND_SECRET)%'
+    
 
 when@test:
     framework:

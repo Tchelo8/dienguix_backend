@@ -100,6 +100,19 @@ class CountryService
     }
 
     /**
+     * Mettre à jour le pays de l'utilisateur
+     */
+    public function updateUserCountry(User $user, Country $country): User
+    {
+        $user->setCountry($country);
+        $user->setUpdatedAt(new \DateTime());
+
+        $this->entityManager->flush();
+
+        return $user;
+    }
+
+    /**
      * Supprimer un pays définitivement
      */
     public function deleteCountry(Country $country): void

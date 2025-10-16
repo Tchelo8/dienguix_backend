@@ -282,4 +282,80 @@ class CountryController extends AbstractController
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
+    /**
+     * Mettre à jour le pays de l'utilisateur connecté
+     */
+    #[Route('/update-my-country', name: 'update_user_country', methods: ['PUT'])]
+    public function updateUserCountry(Request $request): JsonResponse
+    {
+        try {
+            // Récupérer l'utilisateur connecté
+            $user = $this->getUser();
+
+            if (!$user) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            $data = json_decode($request->getContent(), true);
+
+            if (!$data) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Données JSON invalides'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            if (!isset($data['country_id'])) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'L\'ID du pays est requis'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $country = $this->countryService->getCountryById((int) $data['country_id']);
+
+            if (!$country) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Pays non trouvé'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            if (!$country->isActive()) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Ce pays n\'est pas disponible'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $updatedUser = $this->countryService->updateUserCountry($user, $country);
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Pays mis à jour avec succès',
+                'data' => [
+                    'user_id' => $updatedUser->getId(),
+                    'email' => $updatedUser->getEmail(),
+                    'country' => [
+                        'id' => $country->getId(),
+                        'name' => $country->getName(),
+                        'iso_code' => $country->getIsoCode(),
+                        'currency_code' => $country->getCurrencyCode()
+                    ]
+                ]
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du pays',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    
 }

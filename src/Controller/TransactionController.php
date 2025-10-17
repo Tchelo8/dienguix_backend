@@ -243,7 +243,8 @@ class TransactionController extends AbstractController
         } catch (\Exception $e) {
             return $this->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des transactions'
+                'message' => 'Erreur lors de la récupération des transactions',
+                'error' => $e->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

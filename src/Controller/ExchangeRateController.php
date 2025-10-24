@@ -66,4 +66,53 @@ class ExchangeRateController extends AbstractController
             ], 500);
         }
     }
+
+
+    
+    #[Route('/update-rate/{id}', name: 'exchange_rate_update_rate', methods: ['PUT', 'PATCH'])]
+    public function updateRate(int $id, Request $request): JsonResponse
+    {
+        try {
+            $data = json_decode($request->getContent(), true);
+
+            if (!isset($data['rate'])) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Le paramètre "taux" est requis'
+                ], 400);
+            }
+
+            $newRate = $data['rate'];
+
+            // Validation du taux
+            if (!is_numeric($newRate) || $newRate <= 0) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Le taux doit être un nombre positif'
+                ], 400);
+            }
+
+            $result = $this->exchangeRateService->updateRate($id, $newRate);
+
+            if (!$result) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Taux de change non trouvé'
+                ], 404);
+            }
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Taux mis à jour avec succès',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du taux',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -79,7 +79,7 @@ class ExchangeRateService
     {
         // Récupérer toutes les transactions avec le pays comme expéditeur
         $qb = $this->entityManager->createQueryBuilder();
-        
+
         $transactions = $qb->select('t', 'er')
             ->from('App\Entity\Transaction', 't')
             ->leftJoin('t.exchange_rate', 'er')
@@ -96,12 +96,12 @@ class ExchangeRateService
 
         foreach ($transactions as $transaction) {
             $exchangeRate = $transaction->getExchangeRate();
-            
+
             if ($exchangeRate && $exchangeRate->getSource()) {
                 // La source contient la marge en pourcentage (ex: 2.5)
                 $margin = (float) $exchangeRate->getSource();
                 $amountSent = (float) $transaction->getAmountSent();
-                
+
                 // Calcul du bénéfice : montant × (marge / 100)
                 $profit = $amountSent * ($margin / 100);
                 $totalProfit += $profit;
@@ -119,7 +119,7 @@ class ExchangeRateService
 
         foreach ($exchangeRates as $rate) {
             $rateStats = $this->getStatsForExchangeRate($rate->getId(), $rate->getSource());
-            
+
             $stats[] = [
                 'exchange_rate_id' => $rate->getId(),
                 'from_currency' => $rate->getFromCurrency(),
@@ -140,11 +140,11 @@ class ExchangeRateService
     private function getStatsForExchangeRate(int $exchangeRateId, ?string $margin): array
     {
         $qb = $this->entityManager->createQueryBuilder();
-        
+
         $result = $qb->select(
-                'COUNT(t.id) as transaction_count',
-                'SUM(t.amount_sent) as total_volume'
-            )
+            'COUNT(t.id) as transaction_count',
+            'SUM(t.amount_sent) as total_volume'
+        )
             ->from('App\Entity\Transaction', 't')
             ->where('t.exchange_rate = :rateId')
             ->andWhere('t.status = :status')
@@ -155,7 +155,7 @@ class ExchangeRateService
 
         $transactionCount = (int) ($result['transaction_count'] ?? 0);
         $totalVolume = (float) ($result['total_volume'] ?? 0);
-        
+
         // Calcul du profit total pour ce taux de change
         $marginPercentage = (float) ($margin ?? 0);
         $totalProfit = $totalVolume * ($marginPercentage / 100);
@@ -173,11 +173,11 @@ class ExchangeRateService
     public function getStatsByPeriod(\DateTime $startDate, \DateTime $endDate): array
     {
         $qb = $this->entityManager->createQueryBuilder();
-        
+
         $result = $qb->select(
-                'COUNT(t.id) as transaction_count',
-                'SUM(t.amount_sent) as total_volume'
-            )
+            'COUNT(t.id) as transaction_count',
+            'SUM(t.amount_sent) as total_volume'
+        )
             ->from('App\Entity\Transaction', 't')
             ->where('t.created_at >= :start')
             ->andWhere('t.created_at < :end')
@@ -195,6 +195,37 @@ class ExchangeRateService
             ],
             'transaction_count' => (int) ($result['transaction_count'] ?? 0),
             'total_volume' => (float) ($result['total_volume'] ?? 0)
+        ];
+    }
+
+    /**
+     * Mettre à jour uniquement le taux de change (rate)
+     */
+    public function updateRate(int $exchangeRateId, float $newRate): ?array
+    {
+        // Récupérer le taux de change
+        $exchangeRate = $this->exchangeRateRepository->find($exchangeRateId);
+
+        if (!$exchangeRate) {
+            return null;
+        }
+
+        // Mettre à jour le taux
+        $exchangeRate->setRate((string) $newRate);
+        $exchangeRate->setUpdatedAt(new \DateTime());
+
+        // Persister les changements
+        $this->entityManager->flush();
+
+        // Retourner les données mises à jour
+        return [
+            'exchange_rate_id' => $exchangeRate->getId(),
+            'from_currency' => $exchangeRate->getFromCurrency(),
+            'to_currency' => $exchangeRate->getToCurrency(),
+            'rate' => (float) $exchangeRate->getRate(),
+            'margin' => (float) $exchangeRate->getSource(),
+            'is_active' => $exchangeRate->isActive(),
+            'updated_at' => $exchangeRate->getUpdatedAt()?->format('Y-m-d H:i:s')
         ];
     }
 }

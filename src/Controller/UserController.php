@@ -205,5 +205,34 @@ class UserController extends AbstractController
             ], 500);
         }
     }
-    
+
+    #[Route('/search', name: 'api_users_search', methods: ['GET'])]
+    public function searchUsers(Request $request): JsonResponse
+    {
+        try {
+            $query = $request->query->get('q', '');
+
+            if (empty($query)) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Le paramètre de recherche "q" est requis'
+                ], 400);
+            }
+
+            $users = $this->userService->searchUsers($query);
+
+            return $this->json([
+                'success' => true,
+                'data' => $users,
+                'count' => count($users),
+                'query' => $query
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la recherche',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

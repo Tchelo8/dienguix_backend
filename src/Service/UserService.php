@@ -353,7 +353,7 @@ class UserService
 
             // Mettre à jour le statut
             $user->setIsActive($newStatus);
-            $user->setStatus($newStatus); 
+            $user->setStatus($newStatus);
             $user->setUpdatedAt(new \DateTime());
 
             $this->em->flush();
@@ -376,5 +376,28 @@ class UserService
                 'code' => 500
             ];
         }
+    }
+
+    /**
+     * Recherche des utilisateurs par nom, prénom, email ou téléphone
+     */
+    public function searchUsers(string $query): array
+    {
+        $users = $this->em->getRepository(User::class)
+            ->createQueryBuilder('u')
+            ->leftJoin('u.userProfile', 'p')
+            ->leftJoin('u.role', 'r')
+            ->leftJoin('u.country', 'c')
+            ->addSelect('p', 'r', 'c')
+            ->where('u.first_name LIKE :query')
+            ->orWhere('u.last_name LIKE :query')
+            ->orWhere('u.email LIKE :query')
+            ->orWhere('u.phone LIKE :query')
+            ->setParameter('query', '%' . $query . '%')
+            ->orderBy('u.created_at', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        return array_map([$this, 'formatUserData'], $users);
     }
 }

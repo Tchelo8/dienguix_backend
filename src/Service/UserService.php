@@ -67,23 +67,21 @@ class UserService
         }
         $user->setCountry($country);
 
-        // Si ce n'est PAS un admin → on crée automatiquement un UserProfile
-        if (strtoupper($role->getName()) !== 'Administrateur') {
-            $profile = new UserProfile();
-            $profile->setUzer($user)
-                ->setAddress($data['address'] ?? '')
-                ->setCity($data['city'] ?? '')
-                ->setGender($data['gender'] ?? 'unknown')
-                ->setBirthDate(new \DateTime($data['birth_date'] ?? '2000-01-01'))
-                ->setVerified(false)
-                ->setStatus(true)
-                ->setCreatedAt(new \DateTimeImmutable())
-                ->setUpdatedAt(new \DateTime())
-                ->setDocumentNumber($data['document_number'] ?? '')
-                ->setDocumentFile($data['document_file'] ?? '');
-            $user->setUserProfile($profile);
-            $this->em->persist($profile);
-        }
+        $profile = new UserProfile();
+        $profile->setUzer($user)
+            ->setAddress($data['address'] ?? '')
+            ->setCity($data['city'] ?? '')
+            ->setGender($data['gender'] ?? 'unknown')
+            ->setBirthDate(new \DateTime($data['birth_date'] ?? '2000-01-01'))
+            ->setVerified(false)
+            ->setStatus(true)
+            ->setCreatedAt(new \DateTimeImmutable())
+            ->setUpdatedAt(new \DateTime())
+            ->setDocumentNumber($data['document_number'] ?? '')
+            ->setDocumentFile($data['document_file'] ?? '');
+        $user->setUserProfile($profile);
+        $this->em->persist($profile);
+
 
         $this->em->persist($user);
         $this->em->flush();

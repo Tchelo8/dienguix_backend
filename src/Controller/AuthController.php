@@ -30,7 +30,8 @@ final class AuthController extends AbstractController
 
         try {
             $roleId = $data['role'] ?? 1; 
-            $user = $this->userService->createUser($data, $roleId);
+            $countryId = $data['country'] ?? 1;
+            $user = $this->userService->createUser($data, $roleId, $countryId);
 
             return $this->json([
                 'success' => true,

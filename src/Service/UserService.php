@@ -18,7 +18,7 @@ class UserService
      * Crée un utilisateur.
      * Si le rôle n'est pas admin, crée aussi un profil lié.
      */
-    public function createUser(array $data, int $roleId): User
+    public function createUser(array $data, int $roleId, int $countryId): User
     {
         // D'abord faire une vérification pour savoir si l'utilisateur existe et vérifier l'unicité de l'email
         $existingUserByEmail = $this->em->getRepository(User::class)
@@ -60,6 +60,12 @@ class UserService
         }
 
         $user->setRole($role);
+
+        $country = $this->em->getRepository(\App\Entity\Country::class)->find($countryId);
+        if (!$country) {
+            throw new \InvalidArgumentException("Pays avec l'ID {$countryId} introuvable.");
+        }
+        $user->setCountry($country);
 
         // Si ce n'est PAS un admin → on crée automatiquement un UserProfile
         if (strtoupper($role->getName()) !== 'Administrateur') {

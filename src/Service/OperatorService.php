@@ -159,6 +159,35 @@ class OperatorService
         return $result;
     }
 
+
+    /**
+     * Récupère les opérateurs d'un pays (format simplifié sans statistiques pour la partie admin et railway qui faisait chierr !!!)
+     */
+    public function getOperatorsByCountrySimple(int $countryId): array
+    {
+        $operators = $this->entityManager->getRepository(Operator::class)
+            ->createQueryBuilder('op')
+            ->where('op.country = :countryId')
+            ->andWhere('op.is_active = :active')
+            ->setParameter('countryId', $countryId)
+            ->setParameter('active', true)
+            ->orderBy('op.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($operators as $operator) {
+            $result[] = [
+                'id' => $operator->getId(),
+                'name' => $operator->getName(),
+                'code' => $operator->getCode(),
+                'type' => $operator->getType()
+            ];
+        }
+
+        return $result;
+    }
+
     /**
      * Calcule les statistiques d'un opérateur
      */

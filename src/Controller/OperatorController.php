@@ -74,25 +74,13 @@ class OperatorController extends AbstractController
             // Récupérer l'utilisateur connecté
             /** @var User $user */
             $user = $this->getUser();
-
+  
             if (!$user) {
-            $authHeader = $request->headers->get('Authorization');
-            
-            return new JsonResponse([
-                'success' => false,
-                'message' => 'Utilisateur non authentifié',
-                'details' => $authHeader 
-                    ? 'Token présent mais invalide ou expiré' 
-                    : 'Aucun token d\'autorisation fourni'
-            ], Response::HTTP_UNAUTHORIZED);
-        }
-
-            // if (!$user) {
-            //     return new JsonResponse([
-            //         'success' => false,
-            //         'message' => 'Utilisateur non authentifié'
-            //     ], Response::HTTP_UNAUTHORIZED);
-            // }
+                return new JsonResponse([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
 
             // Vérifier que l'utilisateur a un pays
             if (!$user->getCountry()) {
@@ -123,7 +111,38 @@ class OperatorController extends AbstractController
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-    
+
+    /**
+     * Récupère les opérateurs d'un pays (format simplifié sans statistiques)
+     */
+    #[Route('/country/{countryId}/simple', name: 'operators_by_country_simple', methods: ['GET'])]
+    public function getOperatorsByCountrySimple(int $countryId): JsonResponse
+    {
+        try {
+            $data = $this->operatorService->getOperatorsByCountrySimple($countryId);
+
+            if (empty($data)) {
+                return new JsonResponse([
+                    'success' => false,
+                    'message' => 'Pays non trouvé ou aucun opérateur actif'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'Opérateurs récupérés avec succès',
+                'data' => $data,
+                'count' => count($data)
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des opérateurs',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
 
     /**
      * Récupère les statistiques d'un opérateur spécifique

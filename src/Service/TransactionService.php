@@ -23,54 +23,83 @@ class TransactionService
 
     /**
      * Créer une nouvelle transaction
+     * 
+     * @param array $data Données simplifiées depuis le frontend
+     * @param User $currentUser L'utilisateur connecté (sender)
+     * @return Transaction
      */
-    public function makeTransaction(array $data): Transaction
+    public function makeTransaction(array $data, User $currentUser): Transaction
     {
-        // Validation des données requises
+        // Validation des données requises (simplifiées)
         $this->validateTransactionData($data);
 
         $transaction = new Transaction();
 
-        // Récupération des entités liées
-        $sender = $this->entityManager->getRepository(User::class)->find($data['sender_id']);
+        // Récupération du receiver
         $receiver = $this->entityManager->getRepository(User::class)->find($data['receiver_id']);
-        $fromCountry = $this->entityManager->getRepository(Country::class)->find($data['from_country_id']);
-        $toCountry = $this->entityManager->getRepository(Country::class)->find($data['to_country_id']);
-        $exchangeRate = $this->entityManager->getRepository(EchangeRate::class)->find($data['exchange_rate_id']);
-
-        if (!$sender || !$receiver || !$fromCountry || !$toCountry || !$exchangeRate) {
-            throw new BadRequestException('Une ou plusieurs entités liées sont introuvables');
+        if (!$receiver) {
+            throw new BadRequestException('Destinataire introuvable');
         }
 
+        // Récupération automatique des pays depuis les utilisateurs
+        $fromCountry = $currentUser->getCountry();
+        $toCountry = $receiver->getCountry();
+        
+        if (!$fromCountry || !$toCountry) {
+            throw new BadRequestException('Les utilisateurs doivent avoir un pays associé');
+        }
+
+        // Récupération de l'exchange_rate sélectionné (devise SOURCE)
+        $sourceExchangeRate = $this->entityManager->getRepository(EchangeRate::class)->find($data['exchange_rate_id']);
+        if (!$sourceExchangeRate) {
+            throw new BadRequestException('Taux de change introuvable');
+        }
+
+        // Récupération de l'exchange_rate de la devise DESTINATION
+        $destinationExchangeRate = $this->getUsdToCurrencyRate($toCountry->getCurrencyCode());
+        if (!$destinationExchangeRate) {
+            throw new BadRequestException(
+                "Taux de change introuvable pour la devise destination ({$toCountry->getCurrencyCode()})"
+            );
+        }
+
+        $amountSent = (float) $data['amount_sent'];
+        
+        // Conversion avec calcul dynamique de amount_received et amount_win
+        $conversion = $this->convertCurrency(
+            $amountSent,
+            $sourceExchangeRate,
+            $destinationExchangeRate
+        );
+
+        // Génération automatique des codes sécurisés
+        $transactionRef = $this->generateTransactionRef();
+        $amountSendCode = $this->generateSecureCode('SEND');
+        $amountReceivedCode = $this->generateSecureCode('RECV');
+
+        // Détermination automatique du type de transaction
+        $transactionType = $data['transaction_type'] ?? 'ENVOI';
+
         // Configuration de la transaction
-        $transaction->setSender($sender)
+        $transaction->setSender($currentUser)
             ->setReceiver($receiver)
             ->setFromCountry($fromCountry)
             ->setToCountry($toCountry)
-            ->setAmountSent($data['amount_sent'])
-            ->setAmountReceived($data['amount_received'])
-            ->setAmountSendCode($data['amount_send_code'])
-            ->setAmountReceivedCode($data['amount_received_code'])
-            ->setExchangeRate($exchangeRate)
-            ->setTransactionType($data['transaction_type'])
+            ->setAmountSent($amountSent)
+            ->setAmountReceived($conversion['amount_received'])
+            ->setAmountSendCode($amountSendCode)
+            ->setAmountReceivedCode($amountReceivedCode)
+            ->setExchangeRate($sourceExchangeRate)
+            ->setTransactionType($transactionType)
             ->setPaymentMethod($data['payment_method'])
-            ->setTransactionRef($this->generateTransactionRef())
+            ->setTransactionRef($transactionRef)
             ->setStatus(true)
             ->setTransStatus('INITIATED')
+            ->setAmountWin($conversion['amount_win'])
             ->setIniatedAt(new \DateTimeImmutable())
             ->setCreatedAt(new \DateTimeImmutable());
 
         // Champs optionnels
-        if (isset($data['trans_fees'])) {
-            $transaction->setTransFees($data['trans_fees']);
-
-            // Calcul automatique de amount_win pour définir combien on gagne à chaque transaction by #tcheloooo
-            $amountSent = (float) $data['amount_sent'];
-            $feePercentage = (float) $data['trans_fees'];
-            $amountWin = ($amountSent * $feePercentage) / 100;
-            $transaction->setAmountWin(number_format($amountWin, 2, '.', ''));
-        }
-
         if (isset($data['note'])) {
             $transaction->setNote($data['note']);
         }
@@ -323,8 +352,11 @@ class TransactionService
     }
 
     /**
-     * Méthodes privées
+     * ===================================================================
+     * MÉTHODES PRIVÉES
+     * ===================================================================
      */
+
     private function findTransactionById(int $id): Transaction
     {
         $transaction = $this->entityManager->getRepository(Transaction::class)->find($id);
@@ -336,42 +368,176 @@ class TransactionService
         return $transaction;
     }
 
+    /**
+     * Validation simplifiée - les codes sont générés automatiquement
+     */
     private function validateTransactionData(array $data): void
     {
         $required = [
-            'sender_id',
             'receiver_id',
-            'from_country_id',
-            'to_country_id',
             'amount_sent',
-            'amount_received',
-            'amount_send_code',
-            'amount_received_code',
             'exchange_rate_id',
-            'transaction_type',
             'payment_method'
         ];
 
         foreach ($required as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
+            if (!isset($data[$field]) || ($field !== 'receiver_id' && empty($data[$field]))) {
                 throw new BadRequestException("Le champ '{$field}' est requis");
             }
         }
 
-        // Validation des montants
+        // Validation du montant envoyé
         if (!is_numeric($data['amount_sent']) || $data['amount_sent'] <= 0) {
             throw new BadRequestException('Le montant envoyé doit être un nombre positif');
         }
-
-        if (!is_numeric($data['amount_received']) || $data['amount_received'] <= 0) {
-            throw new BadRequestException('Le montant reçu doit être un nombre positif');
-        }
     }
 
+    /**
+     * ===================================================================
+     * MÉTHODES DE GÉNÉRATION SÉCURISÉE
+     * ===================================================================
+     */
+
+    /**
+     * Génère une référence de transaction unique et sécurisée
+     * Format: TXN_YYYYMMDD_RANDOM16_TIMESTAMP
+     * 
+     * @return string
+     */
     private function generateTransactionRef(): string
     {
-        return 'TXN_' . strtoupper(uniqid()) . '_' . time();
+        $date = date('Ymd');
+        $randomBytes = bin2hex(random_bytes(8)); // 16 caractères hexadécimaux
+        $timestamp = microtime(true) * 10000; // Timestamp avec microsecondes
+        
+        return sprintf('TXN_%s_%s_%d', $date, strtoupper($randomBytes), $timestamp);
     }
+
+    /**
+     * Génère un code sécurisé pour amount_send_code ou amount_received_code
+     * Format: PREFIX_YYYYMMDD_RANDOM12_CHECKSUM
+     * 
+     * @param string $prefix Le préfixe (SEND, RECV, etc.)
+     * @return string
+     */
+    private function generateSecureCode(string $prefix): string
+    {
+        $date = date('Ymd');
+        $randomBytes = bin2hex(random_bytes(6)); // 12 caractères hexadécimaux
+        
+        // Génération d'un checksum pour validation ultérieure
+        $data = $prefix . $date . $randomBytes;
+        $checksum = substr(hash('sha256', $data), 0, 6);
+        
+        return sprintf('%s_%s_%s_%s', $prefix, $date, strtoupper($randomBytes), strtoupper($checksum));
+    }
+
+    /**
+     * Génère un code PIN sécurisé pour authentification
+     * 
+     * @param int $length Longueur du code (par défaut 6)
+     * @return string
+     */
+    private function generateSecurePin(int $length = 6): string
+    {
+        $pin = '';
+        for ($i = 0; $i < $length; $i++) {
+            $pin .= random_int(0, 9);
+        }
+        return $pin;
+    }
+
+    /**
+     * Génère un token sécurisé pour validation
+     * 
+     * @param int $length Longueur du token en bytes (par défaut 32)
+     * @return string
+     */
+    private function generateSecureToken(int $length = 32): string
+    {
+        return bin2hex(random_bytes($length));
+    }
+
+    /**
+     * Vérifie si un code a le bon format et checksum
+     * 
+     * @param string $code Le code à vérifier
+     * @param string $prefix Le préfixe attendu
+     * @return bool
+     */
+    private function validateSecureCode(string $code, string $prefix): bool
+    {
+        $parts = explode('_', $code);
+        
+        if (count($parts) !== 4 || $parts[0] !== $prefix) {
+            return false;
+        }
+
+        // Recalcul du checksum pour validation
+        $data = $parts[0] . $parts[1] . $parts[2];
+        $expectedChecksum = substr(hash('sha256', $data), 0, 6);
+        
+        return strtoupper($parts[3]) === strtoupper($expectedChecksum);
+    }
+
+    /**
+     * ===================================================================
+     * MÉTHODES DE CONVERSION DE DEVISES
+     * ===================================================================
+     */
+
+    /**
+     * Récupérer le taux de change USD vers une devise
+     */
+    private function getUsdToCurrencyRate(string $currencyCode): ?EchangeRate
+    {
+        return $this->entityManager->getRepository(EchangeRate::class)
+            ->createQueryBuilder('er')
+            ->where('er.from_currency = :usd')
+            ->andWhere('er.to_currency = :currency')
+            ->andWhere('er.is_active = true')
+            ->setParameter('usd', 'USD')
+            ->setParameter('currency', $currencyCode)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    /**
+     * Convertir un montant via USD comme devise pivot
+     * 
+     * @param float $amount Montant à convertir
+     * @param EchangeRate $sourceRate Taux USD→devise_source (ex: USD→XAF)
+     * @param EchangeRate $destinationRate Taux USD→devise_destination (ex: USD→RUB)
+     * @return array
+     */
+    private function convertCurrency(
+        float $amount, 
+        EchangeRate $sourceRate,
+        EchangeRate $destinationRate
+    ): array {
+        // ÉTAPE 1 : Convertir devise_source → USD
+        $usdAmount = $amount / (float) $sourceRate->getRate();
+
+        // ÉTAPE 2 : Convertir USD → devise_destination
+        $amountReceived = $usdAmount * (float) $destinationRate->getRate();
+
+        // ÉTAPE 3 : Calculer amount_win avec la marge du sourceRate
+        $margeProfit = (float) $sourceRate->getMargeProfit() ?? 0;
+        $amountWin = ($amount * $margeProfit) / 100;
+
+        return [
+            'amount_received' => round($amountReceived, 2),
+            'usd_amount' => round($usdAmount, 2),
+            'amount_win' => round($amountWin, 2)
+        ];
+    }
+
+    /**
+     * ===================================================================
+     * MÉTHODES UTILITAIRES
+     * ===================================================================
+     */
 
     private function applyFilters($qb, array $filters): void
     {

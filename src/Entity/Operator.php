@@ -64,10 +64,17 @@ class Operator implements \JsonSerializable
     #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'operator_receiver')]
     private Collection $transaction_operator_receiver;
 
+    /**
+     * @var Collection<int, UserProfile>
+     */
+    #[ORM\OneToMany(targetEntity: UserProfile::class, mappedBy: 'operator')]
+    private Collection $userProfiles;
+
     public function __construct()
     {
         $this->transaction_operator_sender = new ArrayCollection();
         $this->transaction_operator_receiver = new ArrayCollection();
+        $this->userProfiles = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -299,5 +306,35 @@ class Operator implements \JsonSerializable
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];
+    }
+
+    /**
+     * @return Collection<int, UserProfile>
+     */
+    public function getUserProfiles(): Collection
+    {
+        return $this->userProfiles;
+    }
+
+    public function addUserProfile(UserProfile $userProfile): static
+    {
+        if (!$this->userProfiles->contains($userProfile)) {
+            $this->userProfiles->add($userProfile);
+            $userProfile->setOperator($this);
+        }
+
+        return $this;
+    }
+
+    public function removeUserProfile(UserProfile $userProfile): static
+    {
+        if ($this->userProfiles->removeElement($userProfile)) {
+            // set the owning side to null (unless already changed)
+            if ($userProfile->getOperator() === $this) {
+                $userProfile->setOperator(null);
+            }
+        }
+
+        return $this;
     }
 }

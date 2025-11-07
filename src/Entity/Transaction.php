@@ -71,13 +71,13 @@ class Transaction implements \JsonSerializable
     #[ORM\Column]
     private ?\DateTimeImmutable $iniated_at = null;
 
-    #[ORM\Column]
+    #[ORM\Column (nullable: true)]
     private ?\DateTimeImmutable $completed_at = null;
 
-    #[ORM\Column]
+    #[ORM\Column (nullable: true)]
     private ?\DateTimeImmutable $failed_at = null;
 
-    #[ORM\Column]
+    #[ORM\Column (nullable: true)]
     private ?\DateTime $updated_at = null;
 
     #[ORM\Column]
@@ -409,16 +409,22 @@ class Transaction implements \JsonSerializable
             'from_country' => $this->from_country ? [
                 'id' => $this->from_country->getId(),
                 'name' => $this->from_country->getName(),
+                'code' => $this->from_country->getCurrencyCode(),
             ] : null,
             
             'to_country' => $this->to_country ? [
                 'id' => $this->to_country->getId(),
                 'name' => $this->to_country->getName(),
+                'code' => $this->to_country->getCurrencyCode(),
             ] : null,
             
             'exchange_rate' => $this->exchange_rate ? [
                 'id' => $this->exchange_rate->getId(),
                 'rate' => $this->exchange_rate->getRate(),
+                'real_rate' => $this->exchange_rate->getRealRate(),
+                'marge_profit' => $this->exchange_rate->getMargeProfit(),
+                'from_currency' => $this->exchange_rate->getFromCurrency(),
+                'to_curency' => $this->exchange_rate->getToCurrency(),
             ] : null,
             
             'operator_sender' => $this->operator_sender ? [

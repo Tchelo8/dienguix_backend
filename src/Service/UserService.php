@@ -117,7 +117,8 @@ class UserService
             ->leftJoin('u.userProfile', 'p')
             ->leftJoin('u.role', 'r')
             ->leftJoin('u.country', 'c')
-            ->addSelect('p', 'r', 'c')
+            ->leftJoin('p.operator', 'o')  // Ajout du join sur l'opérateur
+            ->addSelect('p', 'r', 'c', 'o')
             ->where('u.id = :id')
             ->setParameter('id', $id)
             ->getQuery()
@@ -150,7 +151,6 @@ class UserService
             $userData['country'] = [
                 'id' => $user->getCountry()->getId(),
                 'name' => $user->getCountry()->getName(),
-                // Ajoutez d'autres propriétés du pays si nécessaires
             ];
         } else {
             $userData['country'] = null;
@@ -161,7 +161,6 @@ class UserService
             $userData['role'] = [
                 'id' => $user->getRole()->getId(),
                 'name' => $user->getRole()->getName(),
-                // Ajoutez d'autres propriétés du rôle si nécessaires
             ];
         } else {
             $userData['role'] = null;
@@ -183,9 +182,21 @@ class UserService
                 'created_at' => $profile->getCreatedAt()?->format('Y-m-d H:i:s'),
                 'updated_at' => $profile->getUpdatedAt()?->format('Y-m-d H:i:s'),
             ];
+
+            // Ajouter les informations de l'opérateur
+            if ($profile->getOperator()) {
+                $userData['profile']['operator'] = [
+                    'id' => $profile->getOperator()->getId(),
+                    'name' => $profile->getOperator()->getName(),
+                    'code' => $profile->getOperator()->getCode(),
+                    'type' => $profile->getOperator()->getType(),
+                ];
+            } else {
+                $userData['profile']['operator'] = null;
+            }
         } else {
             $userData['profile'] = null;
-        }
+        }  // <-- Cette accolade manquait !
 
         // Statistiques des transactions
         $userData['transactions_stats'] = [

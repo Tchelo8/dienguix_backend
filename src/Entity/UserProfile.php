@@ -52,6 +52,9 @@ class UserProfile implements \JsonSerializable
     #[ORM\Column(length: 255)]
     private ?string $document_file = null;
 
+    #[ORM\ManyToOne(inversedBy: 'userProfiles')]
+    private ?Operator $operator = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -234,7 +237,26 @@ class UserProfile implements \JsonSerializable
                 'name' => $this->document->getName(), 
 
             ] : null,
+            'operateur' => $this->operator ? [
+                'id' => $this->operator->getId(),
+                'name' => $this->operator->getName(), 
+                'code' => $this->operator->getCode(),
+                'type' => $this->operator->getType(),
+
+            ] : null,
         ];
     }
+
+        public function getOperator(): ?Operator
+        {
+            return $this->operator;
+        }
+
+        public function setOperator(?Operator $operator): static
+        {
+            $this->operator = $operator;
+
+            return $this;
+        }
 
 }

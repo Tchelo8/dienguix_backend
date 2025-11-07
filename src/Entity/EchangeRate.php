@@ -46,6 +46,12 @@ class EchangeRate
     #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'exchange_rate')]
     private Collection $transaction_exchange_rate;
 
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
+    private ?string $real_rate = null;
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
+    private ?string $marge_profit = null;
+
     public function __construct()
     {
         $this->transaction_exchange_rate = new ArrayCollection();
@@ -189,6 +195,8 @@ class EchangeRate
             'from_currency' => $this->from_currency,
             'to_currency' => $this->to_currency,
             'rate' => $this->rate ? floatval($this->rate) : null,
+            'real_rate' => $this->real_rate ? floatval($this->real_rate) : null,
+            'marge_profit' => $this->marge_profit ? floatval($this->marge_profit) : null,
             'source' => $this->source,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
@@ -197,6 +205,30 @@ class EchangeRate
             'transactions_count' => $this->transaction_exchange_rate->count(),
         ];
     }
+
+     public function getRealRate(): ?string
+     {
+         return $this->real_rate;
+     }
+
+     public function setRealRate(?string $real_rate): static
+     {
+         $this->real_rate = $real_rate;
+
+         return $this;
+     }
+
+     public function getMargeProfit(): ?string
+     {
+         return $this->marge_profit;
+     }
+
+     public function setMargeProfit(?string $marge_profit): static
+     {
+         $this->marge_profit = $marge_profit;
+
+         return $this;
+     }
 }
 
 

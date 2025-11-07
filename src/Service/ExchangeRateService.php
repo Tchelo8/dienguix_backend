@@ -1,8 +1,6 @@
 <?php
 
-
 namespace App\Service;
-
 
 use App\Repository\EchangeRateRepository;
 use App\Repository\TransactionRepository;
@@ -18,6 +16,26 @@ class ExchangeRateService
         private EntityManagerInterface $entityManager
     ) {}
 
+    /**
+     * Récupérer tous les taux de change actifs
+     */
+    public function getActiveExchangeRates(): array
+    {
+        // Récupérer tous les taux de change actifs
+        $exchangeRates = $this->exchangeRateRepository->findBy(
+            ['is_active' => true],
+            ['created_at' => 'DESC']
+        );
+
+        $result = [];
+
+        foreach ($exchangeRates as $rate) {
+            $result[] = $rate->jsonSerialize();
+        }
+
+        return $result;
+    }
+
     public function getDashboardStats(): array
     {
         // Taux USD actifs
@@ -26,8 +44,9 @@ class ExchangeRateService
         // Volume total du jour
         $todayVolume = $this->getTodayTotalVolume();
 
-        // Bénéfices par pays (dynamique pour tous les pays)
-        $beneficesByCountry = $this->calculateAllCountriesProfits();
+        // Bénéfices par devise (calculés depuis amount_win)
+        $beneficeXaf = $this->calculateProfitByCurrency('XAF');
+        $beneficeRub = $this->calculateProfitByCurrency('RUB');
 
         // Transactions par taux de change avec profit et volume
         $exchangeRatesStats = $this->getExchangeRatesStats();
@@ -35,9 +54,8 @@ class ExchangeRateService
         return [
             'taux_usd_actif' => $activeRatesCount,
             'volume_total_jour' => $todayVolume,
-            'benefice_xaf' => $beneficesByCountry[1] ?? 0, // Gabon
-            'benefice_russie' => $beneficesByCountry[2] ?? 0, // Russie
-            'benefices_par_pays' => $beneficesByCountry, // Tous les pays
+            'benefice_xaf' => $beneficeXaf,
+            'benefice_russie' => $beneficeRub,
             'exchange_rates' => $exchangeRatesStats
         ];
     }
@@ -55,60 +73,34 @@ class ExchangeRateService
             ->andWhere('t.status = :status')
             ->setParameter('start', $startOfDay)
             ->setParameter('end', $endOfDay)
-            ->setParameter('status', true) // Uniquement les transactions réussies
+            ->setParameter('status', true)
             ->getQuery()
             ->getSingleScalarResult();
 
         return (float) ($result ?? 0);
     }
 
-    private function calculateAllCountriesProfits(): array
+    /**
+     * Calculer le profit total pour une devise de destination
+     * En sommant les amount_win des transactions où to_currency correspond
+     */
+    private function calculateProfitByCurrency(string $currencyCode): float
     {
-        // Récupérer tous les pays
-        $countries = $this->countryRepository->findAll();
-        $profits = [];
-
-        foreach ($countries as $country) {
-            $profits[$country->getId()] = $this->calculateCountryProfit($country->getId());
-        }
-
-        return $profits;
-    }
-
-    private function calculateCountryProfit(int $countryId): float
-    {
-        // Récupérer toutes les transactions avec le pays comme expéditeur
         $qb = $this->entityManager->createQueryBuilder();
 
-        $transactions = $qb->select('t', 'er')
+        $result = $qb->select('SUM(t.amount_win)')
             ->from('App\Entity\Transaction', 't')
             ->leftJoin('t.exchange_rate', 'er')
-            ->where('t.from_country = :countryId')
+            ->where('er.to_currency = :currency')
             ->andWhere('t.status = :status')
             ->andWhere('er.is_active = :active')
-            ->setParameter('countryId', $countryId)
+            ->setParameter('currency', $currencyCode)
             ->setParameter('status', true)
             ->setParameter('active', true)
             ->getQuery()
-            ->getResult();
+            ->getSingleScalarResult();
 
-        $totalProfit = 0;
-
-        foreach ($transactions as $transaction) {
-            $exchangeRate = $transaction->getExchangeRate();
-
-            if ($exchangeRate && $exchangeRate->getSource()) {
-                // La source contient la marge en pourcentage (ex: 2.5)
-                $margin = (float) $exchangeRate->getSource();
-                $amountSent = (float) $transaction->getAmountSent();
-
-                // Calcul du bénéfice : montant × (marge / 100)
-                $profit = $amountSent * ($margin / 100);
-                $totalProfit += $profit;
-            }
-        }
-
-        return $totalProfit;
+        return (float) ($result ?? 0);
     }
 
     private function getExchangeRatesStats(): array
@@ -118,16 +110,17 @@ class ExchangeRateService
         $stats = [];
 
         foreach ($exchangeRates as $rate) {
-            $rateStats = $this->getStatsForExchangeRate($rate->getId(), $rate->getSource());
+            $rateStats = $this->getStatsForExchangeRate($rate->getId());
 
             $stats[] = [
                 'exchange_rate_id' => $rate->getId(),
                 'from_currency' => $rate->getFromCurrency(),
+                'real_rate' => $rate->getRealRate(),
                 'to_currency' => $rate->getToCurrency(),
                 'rate' => (float) $rate->getRate(),
-                'margin' => (float) $rate->getSource(), // La marge en %
+                'margin' => (float) ($rate->getMargeProfit() ?? 0), // ✅ Utiliser marge_profit
                 'transactions_count' => $rateStats['count'],
-                'profit' => $rateStats['profit'],
+                'profit' => $rateStats['profit'], // ✅ Calculé depuis amount_win
                 'volume' => $rateStats['volume'],
                 'created_at' => $rate->getCreatedAt()?->format('Y-m-d H:i:s'),
                 'updated_at' => $rate->getUpdatedAt()?->format('Y-m-d H:i:s')
@@ -137,13 +130,18 @@ class ExchangeRateService
         return $stats;
     }
 
-    private function getStatsForExchangeRate(int $exchangeRateId, ?string $margin): array
+    /**
+     * Calculer les stats pour un exchange_rate spécifique
+     * Le profit vient de la somme des amount_win des transactions
+     */
+    private function getStatsForExchangeRate(int $exchangeRateId): array
     {
         $qb = $this->entityManager->createQueryBuilder();
 
         $result = $qb->select(
             'COUNT(t.id) as transaction_count',
-            'SUM(t.amount_sent) as total_volume'
+            'SUM(t.amount_sent) as total_volume',
+            'SUM(t.amount_win) as total_profit' //  Somme des amount_win
         )
             ->from('App\Entity\Transaction', 't')
             ->where('t.exchange_rate = :rateId')
@@ -153,17 +151,10 @@ class ExchangeRateService
             ->getQuery()
             ->getSingleResult();
 
-        $transactionCount = (int) ($result['transaction_count'] ?? 0);
-        $totalVolume = (float) ($result['total_volume'] ?? 0);
-
-        // Calcul du profit total pour ce taux de change
-        $marginPercentage = (float) ($margin ?? 0);
-        $totalProfit = $totalVolume * ($marginPercentage / 100);
-
         return [
-            'count' => $transactionCount,
-            'volume' => $totalVolume,
-            'profit' => $totalProfit
+            'count' => (int) ($result['transaction_count'] ?? 0),
+            'volume' => (float) ($result['total_volume'] ?? 0),
+            'profit' => (float) ($result['total_profit'] ?? 0)
         ];
     }
 
@@ -198,6 +189,64 @@ class ExchangeRateService
         ];
     }
 
+    public function createExchangeRate(array $data): array
+    {
+        // Validation des données requises
+        if (
+            !isset($data['from_currency']) || !isset($data['to_currency']) ||
+            !isset($data['rate']) || !isset($data['real_rate'])
+        ) {
+            throw new \InvalidArgumentException(
+                'Les champs from_currency, to_currency, rate et real_rate sont requis'
+            );
+        }
+
+        // Validation des valeurs numériques
+        $rate = (float) $data['rate'];
+        $realRate = (float) $data['real_rate'];
+
+        if ($rate <= 0 || $realRate <= 0) {
+            throw new \InvalidArgumentException('Les taux doivent être des nombres positifs');
+        }
+
+        // Calcul automatique de la marge en pourcentage
+        // Formule : ((rate - real_rate) / real_rate) * 100
+        // Exemple : rate=665, real_rate=650 → marge = ((665-650)/650)*100 = 2.31%
+        $margeProfit = (($rate - $realRate) / $realRate) * 100;
+
+        // Création de l'entité EchangeRate
+        $exchangeRate = new \App\Entity\EchangeRate();
+        $exchangeRate->setFromCurrency(strtoupper($data['from_currency']))
+            ->setToCurrency(strtoupper($data['to_currency']))
+            ->setRate((string) $rate)
+            ->setRealRate((string) $realRate)
+            ->setMargeProfit((string) round($margeProfit, 2))
+            ->setSource('Manuelle') // Toujours "Manuelle" pour création manuelle
+            ->setIsActive($data['is_active'] ?? true)
+            ->setStatus($data['status'] ?? true)
+            ->setCreatedAt(new \DateTime())
+            ->setUpdatedAt(new \DateTime());
+
+        // Persister en base de données
+        $this->entityManager->persist($exchangeRate);
+        $this->entityManager->flush();
+
+        // Retourner les données créées
+        return [
+            'id' => $exchangeRate->getId(),
+            'from_currency' => $exchangeRate->getFromCurrency(),
+            'to_currency' => $exchangeRate->getToCurrency(),
+            'rate' => (float) $exchangeRate->getRate(),
+            'real_rate' => (float) $exchangeRate->getRealRate(),
+            'marge_profit' => (float) $exchangeRate->getMargeProfit(),
+            'source' => $exchangeRate->getSource(),
+            'is_active' => $exchangeRate->isActive(),
+            'status' => $exchangeRate->isStatus(),
+            'created_at' => $exchangeRate->getCreatedAt()->format('Y-m-d H:i:s'),
+            'updated_at' => $exchangeRate->getUpdatedAt()->format('Y-m-d H:i:s')
+        ];
+    }
+
     /**
      * Mettre à jour uniquement le taux de change (rate)
      */
@@ -223,7 +272,7 @@ class ExchangeRateService
             'from_currency' => $exchangeRate->getFromCurrency(),
             'to_currency' => $exchangeRate->getToCurrency(),
             'rate' => (float) $exchangeRate->getRate(),
-            'margin' => (float) $exchangeRate->getSource(),
+            'margin' => (float) $exchangeRate->getMargeProfit(),
             'is_active' => $exchangeRate->isActive(),
             'updated_at' => $exchangeRate->getUpdatedAt()?->format('Y-m-d H:i:s')
         ];

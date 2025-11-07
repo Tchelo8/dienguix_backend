@@ -57,7 +57,7 @@ class OperatorService
 
             foreach ($operators as $operator) {
                 $operatorStats = $this->calculateOperatorStats($operator);
-                
+
                 $operatorData = [
                     'id' => $operator->getId(),
                     'name' => $operator->getName(),
@@ -78,6 +78,82 @@ class OperatorService
             }
 
             $result[] = $countryData;
+        }
+
+        return $result;
+    }
+
+
+    /**
+     * Récupère tous les opérateurs actifs avec leurs statistiques
+     */
+    public function getAllOperators(): array
+    {
+        // Récupérer tous les opérateurs actifs
+        $operators = $this->entityManager->getRepository(Operator::class)
+            ->createQueryBuilder('op')
+            ->leftJoin('op.country', 'c')
+            ->where('op.is_active = :active')
+            ->setParameter('active', true)
+            ->orderBy('c.name', 'ASC')
+            ->addOrderBy('op.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+
+        foreach ($operators as $operator) {
+            $operatorStats = $this->calculateOperatorStats($operator);
+
+            $result[] = [
+                'id' => $operator->getId(),
+                'name' => $operator->getName(),
+                'code' => $operator->getCode(),
+                'type' => $operator->getType(),
+                'logo' => $operator->getLogo(),
+                'min_amount' => $operator->getMinAmount(),
+                'max_amount' => $operator->getMaxAmount(),
+                'fees_structure' => $operator->getFeesStructure(),
+                'is_active' => $operator->isActive(),
+                'status' => $operator->isStatus(),
+                'created_at' => $operator->getCreatedAt()?->format('Y-m-d H:i:s'),
+                'updated_at' => $operator->getUpdatedAt()?->format('Y-m-d H:i:s'),
+                'country' => [
+                    'id' => $operator->getCountry()?->getId(),
+                    'name' => $operator->getCountry()?->getName(),
+                    'iso_code' => $operator->getCountry()?->getIsoCode(),
+                    'currency_code' => $operator->getCountry()?->getCurrencyCode()
+                ],
+                'statistics' => $operatorStats
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Récupère les opérateurs d'un pays spécifique (format simplifié)
+     */
+    public function getOperatorsByUserCountry(int $countryId): array
+    {
+        $operators = $this->entityManager->getRepository(Operator::class)
+            ->createQueryBuilder('op')
+            ->where('op.country = :countryId')
+            ->andWhere('op.is_active = :active')
+            ->setParameter('countryId', $countryId)
+            ->setParameter('active', true)
+            ->orderBy('op.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $result = [];
+        foreach ($operators as $operator) {
+            $result[] = [
+                'id' => $operator->getId(),
+                'name' => $operator->getName(),
+                'code' => $operator->getCode(),
+                'type' => $operator->getType()
+            ];
         }
 
         return $result;
@@ -141,13 +217,13 @@ class OperatorService
     public function getOperatorStats(int $operatorId): ?array
     {
         $operator = $this->entityManager->getRepository(Operator::class)->find($operatorId);
-        
+
         if (!$operator) {
             return null;
         }
 
         $stats = $this->calculateOperatorStats($operator);
-        
+
         return [
             'operator' => [
                 'id' => $operator->getId(),
@@ -168,7 +244,7 @@ class OperatorService
     public function getOperatorsByCountry(int $countryId): array
     {
         $country = $this->entityManager->getRepository(Country::class)->find($countryId);
-        
+
         if (!$country) {
             return [];
         }
@@ -194,7 +270,7 @@ class OperatorService
 
         foreach ($operators as $operator) {
             $operatorStats = $this->calculateOperatorStats($operator);
-            
+
             $result['operators'][] = [
                 'id' => $operator->getId(),
                 'name' => $operator->getName(),
@@ -241,8 +317,10 @@ class OperatorService
                 'total_amount' => number_format((float) $result['total_amount'], 2, '.', ''),
                 'total_transactions' => (int) $result['total_transactions'],
                 'average_amount' => number_format(
-                    (float) $result['total_amount'] / (int) $result['total_transactions'], 
-                    2, '.', ''
+                    (float) $result['total_amount'] / (int) $result['total_transactions'],
+                    2,
+                    '.',
+                    ''
                 )
             ];
         }, $results);

@@ -29,12 +29,25 @@ class TransactionController extends AbstractController
     public function makeTransaction(Request $request): JsonResponse
     {
         try {
-            $data = json_decode($request->getContent(), true);
+            // Récupération de l'utilisateur connecté
+            $currentUser = $this->getUser();
 
+            if (!$currentUser) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            // Validation et décodage des données JSON
+            $data = json_decode($request->getContent(), true);
             if (!$data) {
                 throw new BadRequestHttpException('Données JSON invalides');
             }
-            $transaction = $this->transactionService->makeTransaction($data);
+
+            // Création de la transaction avec l'utilisateur connecté
+            $transaction = $this->transactionService->makeTransaction($data, $currentUser);
+
             return $this->json([
                 'success' => true,
                 'message' => 'Transaction créée avec succès',
@@ -46,9 +59,13 @@ class TransactionController extends AbstractController
                 'message' => $e->getMessage()
             ], Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
+            // Log l'erreur pour le debug
+            // $this->logger->error('Erreur création transaction', ['error' => $e->getMessage()]);
+
             return $this->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création de la transaction'
+                'message' => 'Erreur lors de la création de la transaction',
+                'error' => $e->getMessage() // À retirer en production
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

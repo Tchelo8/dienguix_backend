@@ -20,7 +20,7 @@ class ExchangeRateController extends AbstractController
     {
         try {
             $stats = $this->exchangeRateService->getDashboardStats();
-            
+
             return $this->json([
                 'success' => true,
                 'data' => $stats,
@@ -30,6 +30,64 @@ class ExchangeRateController extends AbstractController
             return $this->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    #[Route('/create', name: 'exchange_rate_create', methods: ['POST'])]
+    public function createExchangeRate(Request $request): JsonResponse
+    {
+        try {
+            $data = json_decode($request->getContent(), true);
+
+            if (!$data) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Données JSON invalides'
+                ], 400);
+            }
+
+            $exchangeRate = $this->exchangeRateService->createExchangeRate($data);
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Taux de change créé avec succès',
+                'data' => $exchangeRate
+            ], 201);
+        } catch (\InvalidArgumentException $e) {
+            return $this->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création du taux de change',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupérer tous les taux de change actifs
+     */
+    #[Route('/active', name: 'exchange_rate_active', methods: ['GET'])]
+    public function getActiveExchangeRates(): JsonResponse
+    {
+        try {
+            $exchangeRates = $this->exchangeRateService->getActiveExchangeRates();
+
+            return $this->json([
+                'success' => true,
+                'count' => count($exchangeRates),
+                'data' => $exchangeRates,
+                'timestamp' => (new \DateTime())->format('Y-m-d H:i:s')
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des taux de change actifs',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -53,7 +111,7 @@ class ExchangeRateController extends AbstractController
             $end = new \DateTime($endDate . ' 23:59:59');
 
             $stats = $this->exchangeRateService->getStatsByPeriod($start, $end);
-            
+
             return $this->json([
                 'success' => true,
                 'data' => $stats
@@ -67,8 +125,6 @@ class ExchangeRateController extends AbstractController
         }
     }
 
-
-    
     #[Route('/update-rate/{id}', name: 'exchange_rate_update_rate', methods: ['PUT', 'PATCH'])]
     public function updateRate(int $id, Request $request): JsonResponse
     {
@@ -78,7 +134,7 @@ class ExchangeRateController extends AbstractController
             if (!isset($data['rate'])) {
                 return $this->json([
                     'success' => false,
-                    'message' => 'Le paramètre "taux" est requis'
+                    'message' => 'Le paramètre "rate" est requis'
                 ], 400);
             }
 
@@ -106,7 +162,6 @@ class ExchangeRateController extends AbstractController
                 'message' => 'Taux mis à jour avec succès',
                 'data' => $result
             ]);
-
         } catch (\Exception $e) {
             return $this->json([
                 'success' => false,

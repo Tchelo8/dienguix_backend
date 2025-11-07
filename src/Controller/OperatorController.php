@@ -68,7 +68,7 @@ class OperatorController extends AbstractController
     }
 
     #[Route('/user-country', name: 'operators_by_user_country', methods: ['GET'])]
-    public function getOperatorsByUserCountry(): JsonResponse
+    public function getOperatorsByUserCountry(Request $request): JsonResponse
     {
         try {
             // Récupérer l'utilisateur connecté
@@ -76,11 +76,23 @@ class OperatorController extends AbstractController
             $user = $this->getUser();
 
             if (!$user) {
-                return new JsonResponse([
-                    'success' => false,
-                    'message' => 'Utilisateur non authentifié'
-                ], Response::HTTP_UNAUTHORIZED);
-            }
+            $authHeader = $request->headers->get('Authorization');
+            
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Utilisateur non authentifié',
+                'details' => $authHeader 
+                    ? 'Token présent mais invalide ou expiré' 
+                    : 'Aucun token d\'autorisation fourni'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+            // if (!$user) {
+            //     return new JsonResponse([
+            //         'success' => false,
+            //         'message' => 'Utilisateur non authentifié'
+            //     ], Response::HTTP_UNAUTHORIZED);
+            // }
 
             // Vérifier que l'utilisateur a un pays
             if (!$user->getCountry()) {
@@ -111,6 +123,7 @@ class OperatorController extends AbstractController
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+    
 
     /**
      * Récupère les statistiques d'un opérateur spécifique

@@ -2,8 +2,10 @@
 
 namespace App\Controller;
 
+use App\Entity\User;
 use App\Repository\CountryRepository;
 use App\Service\TransactionService;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,14 +18,18 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class TransactionController extends AbstractController
 {
     private TransactionService $transactionService;
+    private EntityManagerInterface $entityManager;
 
-    public function __construct(TransactionService $transactionService)
-    {
-        $this->transactionService = $transactionService;
-    }
+   public function __construct(
+    TransactionService $transactionService,
+    EntityManagerInterface $entityManager
+) {
+    $this->transactionService = $transactionService;
+    $this->entityManager = $entityManager;
+}
 
     /**
-     * Créer une nouvelle transaction
+     * Créer une nouvelle transaction par la voie normale 
      */
     #[Route('/create/dgapp', name: 'create', methods: ['POST'])]
     public function makeTransaction(Request $request): JsonResponse
@@ -66,6 +72,60 @@ class TransactionController extends AbstractController
                 'success' => false,
                 'message' => 'Erreur lors de la création de la transaction',
                 'error' => $e->getMessage() // À retirer en production
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Créer une nouvelle transaction (version simplifiée sans authentification JWT)
+     * Le sender_id est passé dans le payload tout ça à cause de railwayyy ptdr !!!!
+     */
+    #[Route('/create/simple', name: 'create_simple', methods: ['POST'])]
+    public function makeTransactionSimple(Request $request): JsonResponse
+    {
+        try {
+            // Validation et décodage des données JSON
+            $data = json_decode($request->getContent(), true);
+            if (!$data) {
+                throw new BadRequestHttpException('Données JSON invalides');
+            }
+
+            // Vérifier que sender_id est présent
+            if (!isset($data['sender_id'])) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Le champ sender_id est requis'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Récupération du sender depuis le payload
+            $sender = $this->entityManager->getRepository(User::class)->find($data['sender_id']);
+
+            if (!$sender) {
+                return $this->json([
+                    'success' => false,
+                    'message' => 'Expéditeur introuvable'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Création de la transaction avec le sender passé en paramètre
+            $transaction = $this->transactionService->makeTransaction($data, $sender);
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Transaction créée avec succès',
+                'data' => $transaction
+            ], Response::HTTP_CREATED);
+        } catch (BadRequestHttpException $e) {
+            return $this->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la transaction',
+                'error' => $e->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
